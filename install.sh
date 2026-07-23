@@ -22,20 +22,20 @@ echo ""
 
 read -r -p "Логин пользователя для brew/npm (оставьте пустым, если brew не используется): " BREW_USER
 
-COMPOSE_DIRS=()
-echo "Введите пути к директориям с docker-compose файлами."
+COMPOSE_FILES=()
+echo "Введите полные пути к docker-compose файлам (например, /opt/project/docker-compose.yml)."
 echo "Каждый путь на отдельной строке. Пустая строка — завершить ввод."
 while true; do
-    read -r -p "  Путь: " dir
-    if [ -z "$dir" ]; then
+    read -r -p "  Путь: " filepath
+    if [ -z "$filepath" ]; then
         break
     fi
-    dir="${dir/#\~/$HOME}"
-    if [ -d "$dir" ]; then
-        COMPOSE_DIRS+=("$dir")
+    filepath="${filepath/#\~/$HOME}"
+    if [ -f "$filepath" ]; then
+        COMPOSE_FILES+=("$filepath")
     else
-        echo "  Предупреждение: директория '$dir' не существует, но будет добавлена."
-        COMPOSE_DIRS+=("$dir")
+        echo "  Предупреждение: файл '$filepath' не найден, но будет добавлен."
+        COMPOSE_FILES+=("$filepath")
     fi
 done
 
@@ -51,8 +51,8 @@ cat > "$CONFIG_DST" << EOF
 # Пользователь для brew/npm (оставьте пустым для пропуска)
 BREW_USER="${BREW_USER}"
 
-# Директории c docker-compose файлами (через пробел)
-COMPOSE_DIRS="${COMPOSE_DIRS[*]}"
+# Docker-compose файлы (полные пути, через пробел)
+COMPOSE_FILES="${COMPOSE_FILES[*]}"
 EOF
 
 chmod 644 "$CONFIG_DST"

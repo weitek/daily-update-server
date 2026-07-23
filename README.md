@@ -18,7 +18,7 @@ sudo ./install.sh
 
 В процессе установки скрипт запросит:
 1. **Логин пользователя для brew/npm** — оставьте пустым, если brew не используется.
-2. **Путь к директориям с docker-compose файлами** — можно указать несколько (по одному на строку). Пустая строка завершает ввод.
+2. **Путь к docker-compose файлам** — полные пути к конкретным `docker-compose.yml` (по одному на строку). Пустая строка завершает ввод.
 
 Все параметры сохраняются в `/etc/update-server.conf` и могут быть отредактированы вручную.
 
@@ -27,7 +27,7 @@ sudo ./install.sh
 ```ini
 # /etc/update-server.conf
 BREW_USER="username"          # пользователь для brew/npm (пусто = пропуск)
-COMPOSE_DIRS="/opt/project1 /opt/project2"  # директории с docker-compose (через пробел)
+COMPOSE_FILES="/opt/project1/docker-compose.yml /opt/project2/docker-compose.prod.yml"  # docker-compose файлы (через пробел)
 ```
 
 ## Использование

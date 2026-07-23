@@ -4,7 +4,7 @@ set -e
 CONFIG="/etc/update-server.conf"
 LOG_FILE="/var/log/update-server.log"
 BREW_USER=""
-COMPOSE_DIRS=""
+COMPOSE_FILES=""
 
 if [ -f "$CONFIG" ]; then
     source "$CONFIG"
@@ -56,22 +56,19 @@ else
 fi
 
 # ---- 4. Docker Compose контейнеры ----
-if [ -n "$COMPOSE_DIRS" ]; then
-    for dir in $COMPOSE_DIRS; do
-        if [ ! -d "$dir" ]; then
-            log "Директория $dir не найдена, пропускаем"
+if [ -n "$COMPOSE_FILES" ]; then
+    for compose_file in $COMPOSE_FILES; do
+        if [ ! -f "$compose_file" ]; then
+            log "Файл $compose_file не найден, пропускаем"
             continue
         fi
-        log "Поиск docker-compose файлов в $dir..."
-        find "$dir" -maxdepth 1 -name 'docker-compose*.yml' -o -name 'docker-compose*.yaml' 2>/dev/null | while IFS= read -r compose_file; do
-            log "Обновление образов для $compose_file..."
-            docker compose -f "$compose_file" pull 2>&1 | while IFS= read -r line; do log "docker-pull: $line"; done
-            log "Перезапуск контейнеров для $compose_file..."
-            docker compose -f "$compose_file" up -d --force-recreate 2>&1 | while IFS= read -r line; do log "docker-up: $line"; done
-        done
+        log "Обновление образов для $compose_file..."
+        docker compose -f "$compose_file" pull 2>&1 | while IFS= read -r line; do log "docker-pull: $line"; done
+        log "Перезапуск контейнеров для $compose_file..."
+        docker compose -f "$compose_file" up -d --force-recreate 2>&1 | while IFS= read -r line; do log "docker-up: $line"; done
     done
 else
-    log "COMPOSE_DIRS не задан, пропускаем обновление контейнеров"
+    log "COMPOSE_FILES не задан, пропускаем обновление контейнеров"
 fi
 
 # ---- 5. Очистка неиспользуемых Docker образов ----
