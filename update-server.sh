@@ -1,7 +1,16 @@
 #!/bin/bash
 set -e
 
+CONFIG="/etc/update-server.conf"
 LOG_FILE="/var/log/update-server.log"
+BREW_USER=""
+COMPOSE_DIRS=""
+
+if [ -f "$CONFIG" ]; then
+    source "$CONFIG"
+else
+    echo "Конфиг $CONFIG не найден. Используются значения по умолчанию."
+fi
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
@@ -22,54 +31,47 @@ fi
 
 # ---- 2. Brew ----
 BREW_BIN="/home/linuxbrew/.linuxbrew/bin/brew"
-if [ -x "$BREW_BIN" ]; then
+if [ -n "$BREW_USER" ] && [ -x "$BREW_BIN" ]; then
     log "Обновление brew..."
-    sudo -u weitek bash -c "
+    sudo -u "$BREW_USER" bash -c "
         export PATH=\"$(dirname $BREW_BIN):\$PATH\"
         brew update 2>&1
         brew upgrade 2>&1
         brew cleanup 2>&1
     " | while IFS= read -r line; do log "brew: $line"; done
 else
-    log "brew не найден, пропускаем"
+    log "brew не настроен или не найден, пропускаем"
 fi
 
 # ---- 3. NPM глобальные пакеты ----
 NPM_BIN="/home/linuxbrew/.linuxbrew/bin/npm"
-if [ -x "$NPM_BIN" ]; then
+if [ -n "$BREW_USER" ] && [ -x "$NPM_BIN" ]; then
     log "Обновление npm global..."
-    sudo -u weitek bash -c "
+    sudo -u "$BREW_USER" bash -c "
         export PATH=\"$(dirname $NPM_BIN):\$PATH\"
         npm update -g 2>&1
     " | while IFS= read -r line; do log "npm: $line"; done
 else
-    log "npm не найден, пропускаем"
+    log "npm не настроен или не найден, пропускаем"
 fi
 
-# ---- 4. Multica контейнеры ----
-MULTICA_DIR="/home/weitek/2026-07-20-multica"
-MULTICA_COMPOSE="$MULTICA_DIR/docker-compose.selfhost.yml"
-if [ -f "$MULTICA_COMPOSE" ]; then
-    log "Обновление Multica Docker образов..."
-    docker compose -f "$MULTICA_COMPOSE" pull 2>&1 | while IFS= read -r line; do log "docker-pull: $line"; done
-    log "Перезапуск Multica контейнеров..."
-    docker compose -f "$MULTICA_COMPOSE" up -d --force-recreate 2>&1 | while IFS= read -r line; do log "docker-up: $line"; done
-    log "Ожидание готовности backend..."
-    for i in $(seq 1 30); do
-        if curl -sf http://10.0.72.214:8080/health > /dev/null 2>&1; then
-            log "Backend готов."
-            break
+# ---- 4. Docker Compose контейнеры ----
+if [ -n "$COMPOSE_DIRS" ]; then
+    for dir in $COMPOSE_DIRS; do
+        if [ ! -d "$dir" ]; then
+            log "Директория $dir не найдена, пропускаем"
+            continue
         fi
-        sleep 2
-    done
-    log "Перезапуск Multica daemon (все профили)..."
-    systemctl daemon-reload 2>&1 | while IFS= read -r line; do log "systemd: $line"; done
-    for svc in $(systemctl list-units --full --no-legend 'multica-daemon*' 2>/dev/null | awk '{print $1}'); do
-        systemctl restart "$svc" 2>&1 | while IFS= read -r line; do log "systemd-restart: $line"; done
-        log "  $svc перезапущен."
+        log "Поиск docker-compose файлов в $dir..."
+        find "$dir" -maxdepth 1 -name 'docker-compose*.yml' -o -name 'docker-compose*.yaml' 2>/dev/null | while IFS= read -r compose_file; do
+            log "Обновление образов для $compose_file..."
+            docker compose -f "$compose_file" pull 2>&1 | while IFS= read -r line; do log "docker-pull: $line"; done
+            log "Перезапуск контейнеров для $compose_file..."
+            docker compose -f "$compose_file" up -d --force-recreate 2>&1 | while IFS= read -r line; do log "docker-up: $line"; done
+        done
     done
 else
-    log "multica docker-compose не найден, пропускаем"
+    log "COMPOSE_DIRS не задан, пропускаем обновление контейнеров"
 fi
 
 # ---- 5. Очистка неиспользуемых Docker образов ----
